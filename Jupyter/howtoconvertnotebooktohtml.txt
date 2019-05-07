@@ -1,0 +1,2 @@
+execute this command
+jupyter nbconvert --to html --template hidecode.tpl notebook_name
