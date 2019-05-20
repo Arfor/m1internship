@@ -15,8 +15,7 @@ def magn_texture(position,azi_winding, radi_winding):
 
 def get_spectrum(system, params, timing=False, plot=False):
     #system has to be a finalized Kwant system
-    pars = dict(t=1, mu=-0.1, j=0.2, delta=0.2, azi_winding=1, radi_winding=1)
-    ham = system.hamiltonian_submatrix(params=pars)
+    ham = system.hamiltonian_submatrix(params=params)
     
     if timing:        
         t1 = time.time()
@@ -27,14 +26,19 @@ def get_spectrum(system, params, timing=False, plot=False):
         eVal =LA.eigvalsh(ham)
     
     if plot:
+        fig, ax = plt.subplots(figsize=(10,6))
+        fig.suptitle("Spectrum", fontsize=17)
         plt.plot(eVal)
-
+        ax.set_xlabel('x', fontsize=15)
+        ax.set_ylabel('$\epsilon$', fontsize=15)
+        params_box(ax, params)    
+        
     return eVal
 
 def track_spectrum(system, params, variable = None, values=None, gap_n=6, bulk_n=0, timing=False, plot=False):
     #system has to be a finalized Kwant system
     if not isinstance(variable, str):
-        raise Exception('Specify which parameter in params to vary using it\'s dictionary key (string).')
+        raise Exception('Specify which parameter in params to vary using its dictionary key (string).')
     try:
         iter(params)
     except TypeError:
@@ -46,13 +50,19 @@ def track_spectrum(system, params, variable = None, values=None, gap_n=6, bulk_n
         select_evals = np.append(np.arange(0, size//2-1-gap_n, step=(size//2-gap_n)//bulk_n), \
                                  np.append(select_evals, np.sort(np.arange(size//2,size)[::-(size//2)//bulk_n])))           
     spec = []
+    
+    t1 = time.time()
     for v in values:
         params[variable]=v
         ham = system.hamiltonian_submatrix(params=params)
         eVal = LA.eigvalsh(ham)
         for i in select_evals:
             spec.append(eVal[i])
-                                               
+    
+    if timing:
+        t2 = time.time()
+        print('Hamiltonian size = {0:d}x{0:d} \nSolving {1:d} times took {2:.3f}s'.format(len(eVal),len(values),t2-t1))
+    
     spec=np.reshape(np.asarray(spec), (len(values),len(select_evals)))
 
     if plot:
@@ -62,5 +72,20 @@ def track_spectrum(system, params, variable = None, values=None, gap_n=6, bulk_n
             ax.plot(values,spec[:,i])
             ax.set_xlabel('{}'.format(variable), fontsize=15)
             ax.set_ylabel('$\epsilon$', fontsize=15)
-    
+        params_box(ax, params, variable)
     return spec
+
+def params_box(ax, params, variable=None):
+    pars = params
+    param_text= ''
+    
+    if variable is not None:    
+        if not isinstance(variable, str):
+            raise Exception('Specify which variable is being varied using its dictionary key (string).')
+        pars.pop(variable)
+        
+    for key in pars:
+        param_text = param_text + '{} = {}\n'.format(key, pars[key])    
+    # place text boxes
+    ax.text(1.03, 0.95, param_text, transform=ax.transAxes, fontsize=14,
+            verticalalignment='top', bbox=dict(facecolor='blue', alpha=0.1))
