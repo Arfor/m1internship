@@ -66,17 +66,20 @@ def track_spectrum(system, params, variable = None, values=None, gap_n=6, bulk_n
     spec=np.reshape(np.asarray(spec), (len(values),len(select_evals)))
 
     if plot:
+        N_eVal = len(select_evals)
         fig, ax = plt.subplots(figsize=(10,6))
         fig.suptitle("Spectrum({})".format(variable), fontsize=17)
-        for i in range(len(select_evals)):
-            ax.plot(values,spec[:,i])
-            ax.set_xlabel('{}'.format(variable), fontsize=15)
-            ax.set_ylabel('$\epsilon$', fontsize=15)
+        for i in range(N_eVal//2):
+            ax.plot(values,spec[:,i], color='blue', alpha=0.5+i/N_eVal)
+        for i in range(N_eVal//2, len(select_evals)):
+            ax.plot(values,spec[:,i], color='red', alpha=1.5-i/N_eVal)           
+        ax.set_xlabel('{}'.format(variable), fontsize=15)
+        ax.set_ylabel('$\epsilon$', fontsize=15)
         params_box(ax, params, variable)
     return spec
 
 def params_box(ax, params, variable=None):
-    pars = params
+    pars = params.copy()
     param_text= ''
     
     if variable is not None:    
@@ -89,3 +92,13 @@ def params_box(ax, params, variable=None):
     # place text boxes
     ax.text(1.03, 0.95, param_text, transform=ax.transAxes, fontsize=14,
             verticalalignment='top', bbox=dict(facecolor='blue', alpha=0.1))
+    
+def magn_texture(position,azi_winding, radi_winding):
+    x,y = position
+    theta = np.arctan2(x,y)
+    q = azi_winding
+    p = radi_winding
+    R = radius
+    r = np.sqrt(x**2 + y**2)
+    B = [np.sin(np.pi*p*(r/R))*np.cos(q*theta), np.sin(np.pi*p*(r/R))*np.sin(q*theta), np.cos(np.pi*p*(r/R))]
+    return B
