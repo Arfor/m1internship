@@ -2,6 +2,10 @@ import time
 import numpy as np 
 from numpy import linalg as LA
 from matplotlib import pyplot as plt
+from types import SimpleNamespace
+import kwant
+
+dims = dict(kx = 'k_x',ky = 'k_y', mu = 'µ', delta = 'Δ', t = 't', E='ε',mu_t = 'µ/t')
 
 def magn_texture(position,azi_winding, radi_winding):
     x,y = position
@@ -102,3 +106,26 @@ def magn_texture(position,azi_winding, radi_winding):
     r = np.sqrt(x**2 + y**2)
     B = [np.sin(np.pi*p*(r/R))*np.cos(q*theta), np.sin(np.pi*p*(r/R))*np.sin(q*theta), np.cos(np.pi*p*(r/R))]
     return B
+
+pauli = SimpleNamespace(s0=np.array([[1., 0.], [0., 1.]]),
+                        sx=np.array([[0., 1.], [1., 0.]]),
+                        sy=np.array([[0., -1j], [1j, 0.]]),
+                        sz=np.array([[1., 0.], [0., -1.]]))
+
+#extend Pauli matrices to particle-hole space (see e.g. BdG 'trick' paper)
+pauli.s0s0 = np.kron(pauli.s0, pauli.s0) # I(4)
+pauli.s0sx = np.kron(pauli.s0, pauli.sx) # \sigma_x
+pauli.s0sy = np.kron(pauli.s0, pauli.sy) # \sigma_y
+pauli.s0sz = np.kron(pauli.s0, pauli.sz) # \sigma_z
+pauli.sxs0 = np.kron(pauli.sx, pauli.s0) # \tau_x
+pauli.sxsx = np.kron(pauli.sx, pauli.sx)
+pauli.sxsy = np.kron(pauli.sx, pauli.sy)
+pauli.sxsz = np.kron(pauli.sx, pauli.sz)
+pauli.sys0 = np.kron(pauli.sy, pauli.s0) # \tau_y
+pauli.sysx = np.kron(pauli.sy, pauli.sx)
+pauli.sysy = np.kron(pauli.sy, pauli.sy)  
+pauli.sysz = np.kron(pauli.sy, pauli.sz)
+pauli.szs0 = np.kron(pauli.sz, pauli.s0) # \tau_z
+pauli.szsx = np.kron(pauli.sz, pauli.sx) 
+pauli.szsy = np.kron(pauli.sz, pauli.sy)
+pauli.szsz = np.kron(pauli.sz, pauli.sz)
