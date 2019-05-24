@@ -4,8 +4,59 @@ from numpy import linalg as LA
 from matplotlib import pyplot as plt
 from types import SimpleNamespace
 import kwant
+import holoviews as hv
+hv.extension('bokeh','matplotlib', logo=False)
 
 dims = dict(kx = 'k_x',ky = 'k_y', mu = 'µ', delta = 'Δ', t = 't', E='ε',mu_t = 'µ/t')
+
+pauli = SimpleNamespace(s0=np.array([[1., 0.], [0., 1.]]),
+                        sx=np.array([[0., 1.], [1., 0.]]),
+                        sy=np.array([[0., -1j], [1j, 0.]]),
+                        sz=np.array([[1., 0.], [0., -1.]]))
+
+#extend Pauli matrices to particle-hole space (see e.g. BdG 'trick' paper)
+pauli.s0s0 = np.kron(pauli.s0, pauli.s0) # I(4)
+pauli.s0sx = np.kron(pauli.s0, pauli.sx) # \sigma_x
+pauli.s0sy = np.kron(pauli.s0, pauli.sy) # \sigma_y
+pauli.s0sz = np.kron(pauli.s0, pauli.sz) # \sigma_z
+pauli.sxs0 = np.kron(pauli.sx, pauli.s0) # \tau_x
+pauli.sxsx = np.kron(pauli.sx, pauli.sx)
+pauli.sxsy = np.kron(pauli.sx, pauli.sy)
+pauli.sxsz = np.kron(pauli.sx, pauli.sz)
+pauli.sys0 = np.kron(pauli.sy, pauli.s0) # \tau_y
+pauli.sysx = np.kron(pauli.sy, pauli.sx)
+pauli.sysy = np.kron(pauli.sy, pauli.sy)  
+pauli.sysz = np.kron(pauli.sy, pauli.sz)
+pauli.szs0 = np.kron(pauli.sz, pauli.s0) # \tau_z
+pauli.szsx = np.kron(pauli.sz, pauli.sx) 
+pauli.szsy = np.kron(pauli.sz, pauli.sy)
+pauli.szsz = np.kron(pauli.sz, pauli.sz)
+
+def onsite(site, t, mu, j, azi_winding, radi_winding, delta): #define a function to determine the onsite energy term of the Hamiltonian
+    position = site.pos #site is a class! Apart from real space position contains the type of atom (to which family it belongs, how many orbitals etc)
+#     B = magn_texture(position,azi_winding,radi_winding) #calculate direction of magnetic field at position (x,y)
+#     skyrmion_interaction = j*(B[0]*pauli.s0sx + B[1]*pauli.s0sy + B[2]*pauli.s0sz)
+    return 4*t*pauli.szs0 - mu*pauli.szs0 + delta*pauli.sxs0 + j*pauli.s0sz
+    
+def hopping(position1,position2,t): #define the hopping terms in your system
+    return -t*pauli.szs0
+
+def build_disk(radius=10, plot=False):
+    sys = kwant.Builder() #initialize your system
+    sqlat = kwant.lattice.square()
+
+    #define a Boolean function to shape your system
+    def disk(position): 
+        x,y = position
+        return x**2 + y**2 < radius**2
+
+    sys[sqlat.shape(disk,(0,0))]= onsite
+    sys[sqlat.neighbors()]= hopping
+
+    if plot:
+        system_plot = kwant.plot(sys)
+        
+    return sys.finalized()
 
 def magn_texture(position,azi_winding, radi_winding):
     x,y = position
@@ -97,35 +148,55 @@ def params_box(ax, params, variable=None):
     ax.text(1.03, 0.95, param_text, transform=ax.transAxes, fontsize=14,
             verticalalignment='top', bbox=dict(facecolor='blue', alpha=0.1))
     
-def magn_texture(position,azi_winding, radi_winding):
-    x,y = position
-    theta = np.arctan2(x,y)
-    q = azi_winding
-    p = radi_winding
-    R = radius
-    r = np.sqrt(x**2 + y**2)
-    B = [np.sin(np.pi*p*(r/R))*np.cos(q*theta), np.sin(np.pi*p*(r/R))*np.sin(q*theta), np.cos(np.pi*p*(r/R))]
-    return B
 
-pauli = SimpleNamespace(s0=np.array([[1., 0.], [0., 1.]]),
-                        sx=np.array([[0., 1.], [1., 0.]]),
-                        sy=np.array([[0., -1j], [1j, 0.]]),
-                        sz=np.array([[1., 0.], [0., -1.]]))
+def dos_bulk_2d(radius=30,t=1,mu=0,delta=0,j=0, smooth=True):
+    #radius = number of points from kx=0 to kx=pi
+    x,y = np.meshgrid(np.linspace(-np.pi,np.pi,2*radius),np.linspace(-np.pi,np.pi,2*radius))
+    e_up = j + np.sqrt( (2*t*(np.cos(x)+np.cos(y)-2)-mu)**2 + delta**2 )
+    e_down = -j + np.sqrt( (2*t*(np.cos(x)+np.cos(y)-2)-mu)**2 + delta**2 )
+    spec = np.asarray([e_up,-e_up, e_down, -e_down]).flatten()
+    
+    plot_opts=dict(width=350, height=350,invert_axes=True, default_tools=['ypan','wheel_zoom','reset', 'save'], framewise=True)
+    style_opts=dict(color='deepskyblue',alpha=0.5)
+    fermi_level = hv.VLine(mu).opts(**plot_opts, color='black', line_dash='dashed', line_width=1.5)
+    
+    if smooth:
+        bandwidth = 0.1 + round(15/radius)/40
+        plot_opts['bandwidth']=bandwidth
+        distr = hv.Distribution(spec, kdims=dims['E']).opts(plot=plot_opts, style=style_opts)
+        plot = (distr*fermi_level)
+    else:
+        n_bins = int(9 + radius/2)
+        hist = hv.Histogram(np.histogram(spec, bins=n_bins, density=True), kdims=dims['E'], vdims='Density').opts(plot=plot_opts, style=style_opts)
+        plot = (hist*fermi_level)
+        
+    return plot.opts(title='DoS 2D ({}x{})'.format(radius,radius))
 
-#extend Pauli matrices to particle-hole space (see e.g. BdG 'trick' paper)
-pauli.s0s0 = np.kron(pauli.s0, pauli.s0) # I(4)
-pauli.s0sx = np.kron(pauli.s0, pauli.sx) # \sigma_x
-pauli.s0sy = np.kron(pauli.s0, pauli.sy) # \sigma_y
-pauli.s0sz = np.kron(pauli.s0, pauli.sz) # \sigma_z
-pauli.sxs0 = np.kron(pauli.sx, pauli.s0) # \tau_x
-pauli.sxsx = np.kron(pauli.sx, pauli.sx)
-pauli.sxsy = np.kron(pauli.sx, pauli.sy)
-pauli.sxsz = np.kron(pauli.sx, pauli.sz)
-pauli.sys0 = np.kron(pauli.sy, pauli.s0) # \tau_y
-pauli.sysx = np.kron(pauli.sy, pauli.sx)
-pauli.sysy = np.kron(pauli.sy, pauli.sy)  
-pauli.sysz = np.kron(pauli.sy, pauli.sz)
-pauli.szs0 = np.kron(pauli.sz, pauli.s0) # \tau_z
-pauli.szsx = np.kron(pauli.sz, pauli.sx) 
-pauli.szsy = np.kron(pauli.sz, pauli.sy)
-pauli.szsz = np.kron(pauli.sz, pauli.sz)
+def dos_finite_2d(radius=5,t=1, mu=0, j=0, delta=0, azi_winding=1, radi_winding=1, smooth=True, toolbar=False):
+    #L is the radius of the disk
+    sys = build_disk(radius=radius)
+    params = dict(t=t, mu=mu, j=j, delta=delta, azi_winding=azi_winding, radi_winding=radi_winding)
+    
+    spec = get_spectrum(sys, params)
+    
+    plot_opts=dict(width=350, height=350, invert_axes=True, framewise=True, \
+                   default_tools=['ypan','wheel_zoom','reset', 'save'])
+    style_opts=dict(color='tomato',alpha=0.5)
+    
+    if not toolbar:
+        plot_opts['toolbar']='disable'
+        
+    fermi_level = hv.VLine(mu).opts(**plot_opts, color='black', line_dash='dashed', line_width=1.5)
+
+    if smooth == True:
+        bandwidth =  0.1 + round(15/radius)/40
+        plot_opts['bandwidth'] = bandwidth
+        distr = hv.Distribution(spec, kdims=dims['E']).opts(bandwidth=bandwidth).opts(plot=plot_opts, style=style_opts)
+        plot = (distr*fermi_level)
+    else:
+        n_bins = int(9 + radius/2)
+        hist = hv.Histogram(np.histogram(spec, bins=n_bins, density=True), kdims=dims['E'], vdims='Density').opts(plot=plot_opts, style=style_opts)
+        plot = (hist*fermi_level)
+        
+    return plot.opts(title='Dos Finite System R={:d}'.format(radius))
+
