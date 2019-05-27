@@ -43,7 +43,7 @@ def hopping(position1,position2,t): #define the hopping terms in your system
 
 def build_disk(radius=10, plot=False):
     sys = kwant.Builder() #initialize your system
-    sqlat = kwant.lattice.square()
+    sqlat = kwant.lattice.square(norbs=2) #needed in order to separate the electron and hole contribution to the scattering matrix (each site has one electron and one hole orbital)
 
     #define a Boolean function to shape your system
     def disk(position): 
@@ -58,7 +58,7 @@ def build_disk(radius=10, plot=False):
         
     return sys.finalized()
 
-def magn_texture(position,azi_winding, radi_winding):
+def magn_texture(position, R0=0, radius=10, azi_winding=1, radi_winding=1):
     x,y = position
     theta = np.arctan2(x,y)
     q = azi_winding
