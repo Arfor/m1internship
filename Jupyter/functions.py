@@ -32,10 +32,10 @@ pauli.szsx = np.kron(pauli.sz, pauli.sx)
 pauli.szsy = np.kron(pauli.sz, pauli.sy)
 pauli.szsz = np.kron(pauli.sz, pauli.sz)
 
-def onsite(site, t, mu, j, azi_winding, radi_winding, delta): #define a function to determine the onsite energy term of the Hamiltonian
+def onsite(site, R0, radius, t, mu, j, azi_winding, radi_winding, delta): #define a function to determine the onsite energy term of the Hamiltonian
     position = site.pos #site is a class! Apart from real space position contains the type of atom (to which family it belongs, how many orbitals etc)
-#     B = magn_texture(position,azi_winding,radi_winding) #calculate direction of magnetic field at position (x,y)
-#     skyrmion_interaction = j*(B[0]*pauli.s0sx + B[1]*pauli.s0sy + B[2]*pauli.s0sz)
+    B = magn_texture(position, R0, radius, azi_winding, radi_winding) #calculate direction of magnetic field at position (x,y)
+    skyrmion_interaction = j*(B[0]*pauli.s0sx + B[1]*pauli.s0sy + B[2]*pauli.s0sz)
     return 4*t*pauli.szs0 - mu*pauli.szs0 + delta*pauli.sxs0 + j*pauli.s0sz
     
 def hopping(position1,position2,t): #define the hopping terms in your system
