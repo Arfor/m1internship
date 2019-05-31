@@ -200,3 +200,45 @@ def dos_finite_2d(radius=5,t=1, mu=0, j=0, delta=0, azi_winding=1, radi_winding=
         
     return plot.opts(title='Dos Finite System R={:d}'.format(radius))
 
+def plot_density(sys, params, eigen, n):
+    #sys = Kwant system, eigen=(eVal, eVec), n= number of wavefunction to plot
+    eVal, eVec = eigen
+    prob_dens = np.abs(eVec)**2
+    
+    vmax=np.max(prob_dens[:,n])
+
+    fig, axes = plt.subplots(2,2, sharey=True, sharex=True, figsize=(6,6))
+
+    plt.suptitle('Wavefunction to $\epsilon$={:.3E}'.format(eVal[n]), y=1,fontsize=16)
+    
+    axes[0,0].set_title('$c^{\\dagger}_{\\uparrow}$')
+
+    kwant.plotter.density(sys, prob_dens[0::4, n], vmin=0, vmax=vmax, cmap='magma', ax = axes[0,0], background='#000000')
+    axes[0,0].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[0::4, n])), \
+         transform = axes[0,0].transAxes, bbox=dict(facecolor='white', alpha=0.5))
+
+    axes[0,1].set_title('$c^{\\dagger}_{\\downarrow}$')
+    kwant.plotter.density(sys, prob_dens[1::4, n], vmin=0, vmax=vmax, ax=axes[0,1], cmap='inferno',background='#000000')
+    axes[0,1].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[1::4, n])), \
+         transform = axes[0,1].transAxes, bbox=dict(facecolor='white', alpha=0.5))
+
+    axes[1,0].set_title('$c^{}_{\\uparrow}$')
+    kwant.plotter.density(sys, prob_dens[3::4, n], vmin=0, vmax=vmax, ax=axes[1,0], cmap='inferno',background='#000000')
+    axes[1,0].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[3::4, n])), \
+         transform = axes[1,0].transAxes, bbox=dict(facecolor='white', alpha=0.5))
+
+    axes[1,1].set_title('$c^{}_{\\downarrow}$')
+    kwant.plotter.density(sys, prob_dens[2::4, n], vmin=0, vmax=vmax, ax=axes[1,1], cmap='inferno',background='#000000')
+    axes[1,1].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[2::4, n])), \
+         transform = axes[1,1].transAxes, bbox=dict(facecolor='white', alpha=0.5))
+
+    pars = params.copy()
+    param_text= '\n'
+
+    for key in pars:
+        param_text = param_text + ' {} = {} \n'.format(dims[key], pars[key])    
+    # place text boxes
+    fig.text(0.95, 0.5, param_text, fontsize=14, horizontalalignment='left',\
+         verticalalignment='center', bbox=dict(facecolor='grey', alpha=0.1))
+    
+    return fig
