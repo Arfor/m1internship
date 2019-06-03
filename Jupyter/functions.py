@@ -1,6 +1,5 @@
 import time
 import numpy as np 
-from numpy import linalg as LA
 from matplotlib import pyplot as plt
 from types import SimpleNamespace
 import kwant
@@ -32,9 +31,9 @@ pauli.szsx = np.kron(pauli.sz, pauli.sx)
 pauli.szsy = np.kron(pauli.sz, pauli.sy)
 pauli.szsz = np.kron(pauli.sz, pauli.sz)
 
-def onsite(site, R0, radius, t, mu, j, azi_winding, radi_winding, delta): #define a function to determine the onsite energy term of the Hamiltonian
+def onsite(site, radius, t, mu, j, azi_winding, radi_winding, delta): #define a function to determine the onsite energy term of the Hamiltonian
     position = site.pos #site is a class! Apart from real space position contains the type of atom (to which family it belongs, how many orbitals etc)
-    B = magn_texture(position, R0, radius, azi_winding, radi_winding) #calculate direction of magnetic field at position (x,y)
+    B = magn_texture(position, radius, azi_winding, radi_winding) #calculate direction of magnetic field at position (x,y)
     skyrmion_interaction = j*(B[0]*pauli.s0sx + B[1]*pauli.s0sy + B[2]*pauli.s0sz)
     return 4*t*pauli.szs0 - mu*pauli.szs0 + delta*pauli.sxs0 + j*pauli.s0sz
     
@@ -69,12 +68,12 @@ def magn_texture(position, R0=0, radius=10, azi_winding=1, radi_winding=1):
     return B
 
 def get_spectrum(system, params, timing=False, plot=False):
-    #system has to be a finalized Kwant system
+    #system has to be a finalized Kwant system. Uses numpy.linalg
     ham = system.hamiltonian_submatrix(params=params)
     
     if timing:        
         t1 = time.time()
-        eVal =LA.eigvalsh(ham)
+        eVal =np.linalg.eigvalsh(ham)
         t2 = time.time()
         print('Hamiltonian size = {0:d}x{0:d} \nSolving eigenvalues took {1:.3f}s'.format(len(eVal),t2-t1))
     else:
@@ -91,7 +90,7 @@ def get_spectrum(system, params, timing=False, plot=False):
     return eVal
 
 def track_spectrum(system, params, variable = None, values=None, gap_n=6, bulk_n=0, timing=False, plot=False):
-    #system has to be a finalized Kwant system
+    #system has to be a finalized Kwant system. Uses numpy.linalg
     if not isinstance(variable, str):
         raise Exception('Specify which parameter in params to vary using its dictionary key (string).')
     try:
@@ -110,7 +109,7 @@ def track_spectrum(system, params, variable = None, values=None, gap_n=6, bulk_n
     for v in values:
         params[variable]=v
         ham = system.hamiltonian_submatrix(params=params)
-        eVal = LA.eigvalsh(ham)
+        eVal = np.linalg.eigvalsh(ham)
         for i in select_evals:
             spec.append(eVal[i])
     
@@ -175,7 +174,7 @@ def dos_bulk_2d(radius=30,t=1,mu=0,delta=0,j=0, smooth=True):
 def dos_finite_2d(radius=5,t=1, mu=0, j=0, delta=0, azi_winding=1, radi_winding=1, smooth=True, toolbar=False):
     #L is the radius of the disk
     sys = build_disk(radius=radius)
-    params = dict(t=t, mu=mu, j=j, delta=delta, azi_winding=azi_winding, radi_winding=radi_winding)
+    params = dict(radius=radius, t=t, mu=mu, j=j, delta=delta, azi_winding=azi_winding, radi_winding=radi_winding)
     
     spec = get_spectrum(sys, params)
     
@@ -212,7 +211,6 @@ def plot_density(sys, params, eigen, n):
     plt.suptitle('Wavefunction to $\epsilon$={:.3E}'.format(eVal[n]), y=1,fontsize=16)
     
     axes[0,0].set_title('$c^{\\dagger}_{\\uparrow}$')
-
     kwant.plotter.density(sys, prob_dens[0::4, n], vmin=0, vmax=vmax, cmap='magma', ax = axes[0,0], background='#000000')
     axes[0,0].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[0::4, n])), \
          transform = axes[0,0].transAxes, bbox=dict(facecolor='white', alpha=0.5))
