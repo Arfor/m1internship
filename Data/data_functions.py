@@ -28,7 +28,7 @@ def rebuild_sys(params, shape= 'disk', plot=False):
 
 	return sys.finalized()
 #
-def plot_spec(eVal, params, save_plot_to = None):
+def plot_spec(eVal, params, save_plot_to = None, dpi=250, show=True):
 	fig = plt.figure()
 	plt.plot(eVal/params['delta'],'.')
 	plt.xlim(0,len(eVal))
@@ -47,15 +47,20 @@ def plot_spec(eVal, params, save_plot_to = None):
 	if not save_plot_to==None:
 		if not isinstance(save_plot_to, str):
 			raise Exception('Path has to be a string')
-		plt.savefig(save_plot_to + '\spectrum.png', dpi=250, bbox_inches='tight')        
+		plt.savefig(save_plot_to + '\spectrum.png', dpi=dpi, bbox_inches='tight')        
+	
+	if show:
+		plt.show()
 	
 	plt.close()
 	
 	return fig
 #
-def plot_dos(eVal, params, save_plot_to=None):
+def plot_dos(eVal, params, save_plot_to=None, dpi=250, n_bins=20, show=True):
 	fig = plt.figure()
-	plt.hist(eVal/params['delta'],bins=20, density=True)
+	e_d = eVal/params['delta']
+	plt.hist(e_d, bins=np.linspace(-max(e_d), max(e_d),n_bins), align='mid')
+	plt.axvline(0,color='grey')
 	plt.suptitle('DoS (k={})'.format(len(eVal)))
 	plt.xlabel('$\epsilon/\Delta$', fontsize=14)
 
@@ -71,14 +76,19 @@ def plot_dos(eVal, params, save_plot_to=None):
 	if not save_plot_to==None:
 		if not isinstance(save_plot_to, str):
 			raise Exception('Path has to be a string')
-		plt.savefig(save_plot_to + '\DoS.png', dpi=250, bbox_inches='tight')        
+		plt.savefig(save_plot_to + '\DoS.png', dpi=dpi, bbox_inches='tight')        
+	
+	if show:
+		plt.show()
+		
 	plt.close()	
+	
 	return fig
 	
 
-
 import holoviews as hv
 hv.extension('bokeh', logo=False)
+from bokeh.plotting import show
 #
 def plot_dos_hv(eVal, params, smooth=False, toolbar=False, save_plot_to=None, n_bins=20):
 	plot_opts=dict(width=350, height=350, invert_axes=True, framewise=True, \
@@ -88,13 +98,14 @@ def plot_dos_hv(eVal, params, smooth=False, toolbar=False, save_plot_to=None, n_
 	if not toolbar:
 		plot_opts['toolbar']='disable'
 		
-	fermi_level = hv.VLine(params['mu']).opts(**plot_opts, color='black', line_dash='dashed', line_width=1.5)
+	fermi_level = hv.VLine(params['mu']).opts(**plot_opts, color='grey', line_dash='dashed', line_width=1.5)
 	if smooth == True:
 		bandwidth =  0.09
 		plot_opts['bandwidth'] = bandwidth
 		hist = hv.Distribution(eVal/params['delta'], kdims=dims['E_d']).opts(plot=plot_opts, style=style_opts)
 	else:
-		hist = hv.Histogram(np.histogram(eVal/params['delta'], bins=n_bins, density=True), \
+		e_d = eVal/params['delta']
+		hist = hv.Histogram(np.histogram(e_d, bins=np.linspace(-max(e_d), max(e_d),n_bins), density=False), \
 		kdims=dims['E_d'], vdims='Density').opts(plot=plot_opts, style=style_opts)
 	plot = (hist*fermi_level)
 	
@@ -105,36 +116,38 @@ def plot_dos_hv(eVal, params, smooth=False, toolbar=False, save_plot_to=None, n_
 		
 	return plot.opts(title='DoS (k={:d})'.format(len(eVal)))
 #
-def plot_wf(sys, eigen, params, n=1, save_plot_to = None):
+def plot_density(sys, dens, params, eVal = None, save_plot_to = None, dpi=50, show=True):
 
-	#sys = Kwant system, eigen=(eVal, eVec), n= number of wavefunction to plot
-	eVal, eVec = eigen
-	prob_dens = np.abs(eVec)**2
+	#sys = Kwant system, eVal is associated eigenvalue to probability_density
+	prob_dens = dens
 
-	vmax=np.max(prob_dens[:,n])
+	vmax=np.max(prob_dens)
 
 	fig, axes = plt.subplots(2,2, sharey=True, sharex=True, figsize=(6,6))
 
-	plt.suptitle('Wavefunction to $\epsilon$={:.3E}'.format(eVal[n]), y=1,fontsize=16)
+	if eVal is not None:
+		plt.suptitle('Wavefunction to $\epsilon$={:.3E}'.format(eVal), y=1,fontsize=16)
+	
+	plot_opts= dict(vmin=0, vmax=vmax, cmap='inferno', background='#000000')
 
-	axes[0,0].set_title('$c^{\\dagger}_{\\uparrow}$')
-	kwant.plotter.density(sys, prob_dens[0::4, n], vmin=0, vmax=vmax, cmap='magma', ax = axes[0,0], background='#000000')
-	axes[0,0].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[0::4, n])), \
-		 transform = axes[0,0].transAxes, bbox=dict(facecolor='white', alpha=0.5))
+	axes[0,0].set_title('$|c^{}_{\\uparrow}|^2$')
+	kwant.plotter.density(sys, prob_dens[0::4], ax=axes[0,0], **plot_opts)
+	axes[0,0].text(0.025, 1.05,'$\\rho$'+'={:.2f}'.format(np.sum(prob_dens[0::4])), \
+		transform = axes[0,0].transAxes,  bbox=dict(facecolor='white', alpha=0.5))
 
-	axes[0,1].set_title('$c^{\\dagger}_{\\downarrow}$')
-	kwant.plotter.density(sys, prob_dens[1::4, n], vmin=0, vmax=vmax, ax=axes[0,1], cmap='inferno',background='#000000')
-	axes[0,1].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[1::4, n])), \
+	axes[0,1].set_title('$|c^{}_{\\downarrow}|^2$')
+	kwant.plotter.density(sys, prob_dens[1::4], ax=axes[0,1], **plot_opts )
+	axes[0,1].text(0.025, 1.05,'$\\rho$'+'={:.2f}'.format(np.sum(prob_dens[1::4])), \
 		 transform = axes[0,1].transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
-	axes[1,0].set_title('$c^{}_{\\uparrow}$')
-	kwant.plotter.density(sys, prob_dens[3::4, n], vmin=0, vmax=vmax, ax=axes[1,0], cmap='inferno',background='#000000')
-	axes[1,0].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[3::4, n])), \
+	axes[1,0].set_title('$|c^{\\dagger}_{\\uparrow}|^2$')
+	kwant.plotter.density(sys, prob_dens[3::4], ax=axes[1,0], **plot_opts)
+	axes[1,0].text(0.025, 1.05,'$\\rho$'+'={:.2f}'.format(np.sum(prob_dens[3::4])), \
 		 transform = axes[1,0].transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
-	axes[1,1].set_title('$c^{}_{\\downarrow}$')
-	kwant.plotter.density(sys, prob_dens[2::4, n], vmin=0, vmax=vmax, ax=axes[1,1], cmap='inferno',background='#000000')
-	axes[1,1].text(0.025, 1.05,'|ψ|={:.2f}'.format(np.sum(prob_dens[2::4, n])), \
+	axes[1,1].set_title('$|c^{\\dagger}_{\\downarrow}|^2$')
+	kwant.plotter.density(sys, prob_dens[2::4], ax=axes[1,1], **plot_opts)
+	axes[1,1].text(0.025, 1.05,'$\\rho$'+'={:.2f}'.format(np.sum(prob_dens[2::4])), \
 		 transform = axes[1,1].transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
 	pars = params.copy()
@@ -150,19 +163,59 @@ def plot_wf(sys, eigen, params, n=1, save_plot_to = None):
 	if not save_plot_to==None:
 		if not isinstance(save_plot_to, str):
 			raise Exception('Path has to be a string')
-		plt.savefig(save_plot_to + '\wf{}__e={:.2E}.png'.format(n,eVal[n]), bbox_inches='tight', dpi=50, metadata=params)     
+		if eVal is not None:
+			fig.savefig(save_plot_to + '__e={:.2E}'.format(eVal), format='png', bbox_inches='tight', dpi=dpi, metadata=params)
+		else:
+			fig.savefig(save_plot_to, bbox_inches='tight', format='png', dpi=dpi, metadata=params)
+	
+	if show:
+		plt.show()
 	
 	plt.close()
 	return fig
 	
+#
+def plot_skyrmion_kwant(sys, params, ham=None):
+	#Needs finalized kwant system
+	if ham==None:
+		ham= sys.hamiltonian_submatrix(params=params, sparse=True)
+	
+	b_z = np.real(ham.diagonal()[::4])-(4*params['t']-params['mu']) #Since our function now only contains the magnetic term, we take out the Bz component to check
+	b_x = np.real(ham.diagonal(k=1)[::4])
+	b_y = np.imag(ham.diagonal(k=1)[::4])
+	opts = dict(cmap='cividis', oversampling=1, num_lead_cells=2, vmin=-params['j'], vmax=params['j'])
+	
+	fig, ax = plt.subplots(1,3, sharey=True)
+	ax[0].set_title('$n_x$')
+	kwant.plotter.map(sys, b_x, **opts, ax=ax[0])
+	ax[1].set_title('$n_y$')
+	kwant.plotter.map(sys, b_y, **opts, ax=ax[1])
+	ax[2].set_title('$n_z$')
+	kwant.plotter.map(sys, b_z, **opts, ax=ax[2])
+	plt.close()
 
-
-
+	return fig
 
 #
+def sum_densities(eigen, n=10, plot=True):
+    #please make sure the eigenpairs are already sorted (for example by using functions.solve_sparse when solving system)
+    eVals, eVecs = eigen
+    arg_min_e = np.argmin(np.abs(eVals)) #find index of eigenvalue closest to zero
+    
+    if isinstance(n,int):
+        n_vecs = np.arange(arg_min_e-n//2,np.ceil(arg_min_e+n/2), dtype=int)
+    elif isinstance(n,(list,np.ndarray)):
+        n_vecs = n       
+    else:
+        raise Exception("The argument n has to be a list, array or integer. If integer, the lowest n states (absolute eigenvalue) will be taken")    
+    
+    
+    summed = np.zeros_like(eVecs[:,0], dtype=float)
 
-
-
-
+    for n in n_vecs:
+        summed = np.add(summed, np.abs(eVecs[:,n])**2)
+   
+    return summed
+    
 
 #

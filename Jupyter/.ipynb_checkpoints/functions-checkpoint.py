@@ -30,12 +30,12 @@ pauli.szs0 = np.kron(pauli.sz, pauli.s0) # \tau_z
 pauli.szsx = np.kron(pauli.sz, pauli.sx) 
 pauli.szsy = np.kron(pauli.sz, pauli.sy)
 pauli.szsz = np.kron(pauli.sz, pauli.sz)
+sigma = np.moveaxis(np.array([pauli.s0sx,pauli.s0sy, pauli.s0sz]),0,2)
 
 def onsite(site, radius, t, mu, j, azi_winding, radi_winding, delta): #define a function to determine the onsite energy term of the Hamiltonian
     position = site.pos #site is a class! Apart from real space position contains the type of atom (to which family it belongs, how many orbitals etc)
     B = magn_texture(position, radius, azi_winding, radi_winding) #calculate direction of magnetic field at position (x,y)
-    skyrmion_interaction = j*(B[0]*pauli.s0sx + B[1]*pauli.s0sy + B[2]*pauli.s0sz)
-    return 4*t*pauli.szs0 - mu*pauli.szs0 + delta*pauli.sxs0 + j*pauli.s0sz
+    return 4*t*pauli.szs0 - mu*pauli.szs0 + delta*pauli.sxs0 + j*np.dot(sigma,B)
     
 def hopping(position1,position2,t): #define the hopping terms in your system
     return -t*pauli.szs0
@@ -57,7 +57,7 @@ def build_disk(radius=10, plot=False):
         
     return sys.finalized()
 
-def magn_texture(position, R0=0, radius=10, azi_winding=1, radi_winding=1):
+def magn_texture(position, radius=10, azi_winding=1, radi_winding=1):
     x,y = position
     theta = np.arctan2(x,y)
     q = azi_winding
@@ -240,3 +240,52 @@ def plot_density(sys, params, eigen, n):
          verticalalignment='center', bbox=dict(facecolor='grey', alpha=0.1))
     
     return fig
+
+def solve_sparse(sys, params, k=32, sigma=0, timing=False, show_plot=True, save_plot_to = None):
+    '''
+    params:
+    
+    save_to : needs to be a path 
+    returns : First k sorted eigenpairs with eigenvalues around sigma. 
+    '''
+    ham = sys.hamiltonian_submatrix(params=params, sparse=True)   
+    
+    if timing:
+        import time
+        t1 = time.time()
+        eigen = sla.eigsh(ham, k=k, sigma=sigma)
+        t2 = time.time()
+        print('Hamiltonian size = {0:d}x{0:d} \nSolving for {1:d} solutions around 0 took {2:.3f}s'.format(ham.shape[0],k,t2-t1))
+
+    else:
+        eigen = sla.eigsh(ham, k=k, sigma=sigma)
+        
+    p = eigen[0].argsort() #find the permutation that sorts the eigenvalues
+    eVec= eigen[1][:,p] #sort the eigenvectors with that same permutation
+    eVal = eigen[0][p]
+    
+    if show_plot or not save_plot_to == None:
+        from matplotlib import pyplot as plt
+        plt.plot(eVal/params['delta'],'.')
+        plt.xlim(0,len(eVal))
+        plt.suptitle('Spectrum (k={})'.format(k))
+        plt.ylabel('$\epsilon/\Delta$', fontsize=14)
+
+        pars = params.copy()
+        param_text= '\n'
+
+        for key in pars:
+            param_text = param_text + ' {} = {} \n'.format(dims[key], pars[key])    
+        # place text boxes
+        plt.text(1.05, 0.5, param_text, fontsize=14, horizontalalignment='left',transform = plt.gca().transAxes,\
+             verticalalignment='center', bbox=dict(facecolor='grey', alpha=0.1))
+
+        if not save_plot_to==None:
+            if not isinstance(save_plot_to, str):
+                raise Exception('Path has to be a string')
+            plt.savefig(save_plot_to + '\spectrum.png', dpi=250, bbox_inches='tight')        
+        
+        plt.show()
+        plt.close()
+        
+    return (eVal, eVec)
