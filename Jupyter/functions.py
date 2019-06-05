@@ -1,6 +1,7 @@
 import time
 import numpy as np 
 import scipy.sparse.linalg as sla
+import numpy.linalg as LA
 from matplotlib import pyplot as plt
 from types import SimpleNamespace
 import kwant
